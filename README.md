@@ -12,6 +12,10 @@
 
 A lightweight focus tool that dims the screen while highlighting the currently active window, helping you reduce distractions and stay focused.
 
+<p align="center">
+  <img src="screenshots/demo.png" alt="Tunnel Vision Demo" width="600" />
+</p>
+
 - Tray menu adapts to Dark/Light Windows theme
 - Global hotkey to toggle focus (default: Ctrl+Alt+T)
 - In-app GitHub icon to open the repository instantly
