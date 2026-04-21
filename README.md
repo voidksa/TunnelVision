@@ -93,7 +93,7 @@ Right-click the tray icon and you get a proper Windows 11 context menu — nativ
 - 🧹 Fixed a NullReference crash when opening Settings on first launch.
 - ⚡ Settings window now opens and resizes instantly — all controls use proper transparency.
 
-> 🔮 **Coming later:** blur / acrylic backdrop. The groundwork is in place, but Windows' acrylic API conflicts with our region-based focus cutout (the acrylic fills over the focus window). A proper implementation using a separate blur window with masking is in the backlog.
+> 🔮 **Coming later:** acrylic blur backdrop. The Win32 acrylic API paints over our region-based focus cutout, so the toggle is held back until a proper implementation (using a separate masked blur window around the focus rect) lands.
 
 ---
 

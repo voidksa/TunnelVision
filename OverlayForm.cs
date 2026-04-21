@@ -36,11 +36,10 @@ namespace TunnelVision
         {
             _settings = AppSettings.Load();
 
-            // v1.1.0: blur is disabled at the engine level. The acrylic backdrop API
-            // conflicts with WS_EX_LAYERED + region cutout (the acrylic fills over
-            // the focus window). Force it off regardless of saved config — the UI
-            // also hides the toggle, and the setting is reserved for a future
-            // release that uses a separate blur window with masking.
+            // v1.1.0: blur is force-disabled regardless of saved config.
+            // The acrylic API paints over the region cutout, producing a solid
+            // black screen instead of the blurred-around-focus effect we want.
+            // The setting stays in the schema so upgrade paths keep working.
             _settings.BlurBackground = false;
 
             // Form configuration
@@ -428,9 +427,12 @@ namespace TunnelVision
             if (_settings.BlurBackground)
             {
                 var c = Color.FromArgb(_settings.TintColorArgb);
-                // Tint opacity controlled by Form.Opacity slider (in layered alpha); here we
-                // use a mid-strength tint so the blur shows through comfortably.
-                NativeMethods.ApplyAcrylicBlur(this.Handle, c, 120);
+                // Route the darkness slider into the acrylic tint's alpha channel.
+                // Form.Opacity is held at 1.0 while blur is on so the region cutout
+                // stays crisp — Form.Opacity * acrylic-alpha double-dimming otherwise
+                // washes out the focus window.
+                byte tintAlpha = (byte)Math.Max(0, Math.Min(255, (int)Math.Round(_settings.Opacity * 255)));
+                NativeMethods.ApplyAcrylicBlur(this.Handle, c, tintAlpha);
             }
             else
             {
@@ -608,10 +610,6 @@ namespace TunnelVision
             // Clamp between 10% and 95% (same as slider bounds)
             int current = (int)Math.Round(_settings.Opacity * 100.0);
             int next = Math.Max(10, Math.Min(95, current + deltaPercent));
-            if (next == current && deltaPercent != 0)
-            {
-                // Already at boundary — still show OSD for feedback
-            }
 
             _settings.Opacity = next / 100.0;
             this.Opacity = _settings.Opacity;

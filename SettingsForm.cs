@@ -452,13 +452,14 @@ namespace TunnelVision
             });
             page.Controls.Add(_smoothCheckBox);
 
-            // NOTE: Blur background option is intentionally hidden in v1.1.0.
-            // Windows' ACCENT_ENABLE_ACRYLICBLURBEHIND conflicts with our WS_EX_LAYERED
-            // overlay and region-based cutout — the acrylic material fills the cutout
-            // area, defeating the focus highlight. A proper implementation (separate
-            // blur window with masked region) is planned for a later release.
-            // The field is still present (_blurCheckBox) so layout calculations and
-            // LoadSettingsToUI don't break.
+            // Blur is intentionally NOT exposed in v1.1.0.
+            // Background: Windows' acrylic/BlurBehind APIs don't play well with
+            // our layered-window + region-cutout setup. Every combination we
+            // tested produced either a solid black screen or a washed-out
+            // focus cutout. A proper implementation needs a separate rendering
+            // window positioned around the focus rect — that's bigger than a
+            // toggle and is on the roadmap for a later release. The field is
+            // kept so saved configs load cleanly; it just stays hidden.
             _blurCheckBox = new ToggleSwitch(_isDark) { Visible = false };
 
             _fullscreenCheckBox = BuildSwitch("Auto-pause in fullscreen (games, videos, presentations)", 156, _settings.PauseInFullscreen, (chk) =>
