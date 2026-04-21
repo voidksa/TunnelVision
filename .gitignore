@@ -1,0 +1,66 @@
+# Build outputs
+bin/
+obj/
+Debug/
+Release/
+x64/
+x86/
+[Oo]ut[Pp]ut/
+[Oo]utputs/
+
+# Publish outputs
+publish/
+*.pdb
+*.zip
+
+# Local release staging folders (not committed — we publish via GitHub Releases)
+TunnelVision-v*/
+Release-*/
+ReleasePkg/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+.idea/
+
+# VSCode
+.vscode/
+
+# Claude Code (agent workspace)
+.claude/
+
+# Local per-user runtime config
+config.json
+crash.log
+
+# Demo build artifacts — only the final MP4 under media/ is committed.
+# The full HyperFrames pipeline is preserved in demo/ but its heavy
+# intermediate files are excluded.
+demo/tunnel-vision-demo/node_modules/
+demo/tunnel-vision-demo/music-raw.mp3
+demo/tunnel-vision-demo/*.mp4
+demo/tunnel-vision-demo/.hyperframes-cache/
+demo/tunnel-vision-demo/assets/p0*.mp3
+demo/tunnel-vision-demo/assets/narration-*.mp3
+demo/tunnel-vision-demo/work-*/
+demo/tunnel-vision-demo/AGENTS.md
+demo/tunnel-vision-demo/CLAUDE.md
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Misc
+*.log
+*.tmp
+
+# Legacy/auxiliary installer artifacts (not source, not shipped)
+convert_icon.ps1
+debug.log
+install-desktop_.png

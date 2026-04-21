@@ -1,0 +1,46 @@
+{
+  "en": {
+    "lang": "en",
+    "dir": "ltr",
+    "bodyFont": "'Inter', 'Segoe UI', system-ui, sans-serif",
+    "narrationFile": "narration-en.mp3",
+    "strings": {
+      "appName": "Tunnel Vision",
+      "tagline": "Focus on what matters. Dim the rest.",
+      "problemHeadline": "Too many distractions.",
+      "pressShortcut": "Press Ctrl + Alt + T",
+      "featuresHeadline": "Smart. Fast. Customizable.",
+      "feat1Title": "Live intensity",
+      "feat1Desc": "Adjust darkness on the fly with global hotkeys.",
+      "feat2Title": "Fluent Settings",
+      "feat2Desc": "Redesigned with sidebar, Mica backdrop, green accent.",
+      "feat3Title": "Acrylic blur",
+      "feat3Desc": "Optional frosted glass effect behind the dim.",
+      "osdLabel": "Darkness",
+      "outroHeadline": "Free & Open Source",
+      "outroSub": "github.com/voidksa/TunnelVision"
+    }
+  },
+  "ar": {
+    "lang": "ar",
+    "dir": "rtl",
+    "bodyFont": "'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif",
+    "narrationFile": "narration-ar.mp3",
+    "strings": {
+      "appName": "تَنِل فِجِن",
+      "tagline": "ركّز على المهم. عتّم الباقي.",
+      "problemHeadline": "مشتتات بلا نهاية.",
+      "pressShortcut": "اضغط Ctrl + Alt + T",
+      "featuresHeadline": "ذكي. سريع. قابل للتخصيص.",
+      "feat1Title": "شدة مباشرة",
+      "feat1Desc": "اضبط شدة التعتيم فوراً باختصارات عالمية.",
+      "feat2Title": "إعدادات عصرية",
+      "feat2Desc": "تصميم جديد بشريط جانبي وخلفية Mica ولمسة خضراء.",
+      "feat3Title": "ضبابية أنيقة",
+      "feat3Desc": "تأثير زجاج ضبابي اختياري خلف التعتيم.",
+      "osdLabel": "العتمة",
+      "outroHeadline": "مجاني ومفتوح المصدر",
+      "outroSub": "github.com/voidksa/TunnelVision"
+    }
+  }
+}

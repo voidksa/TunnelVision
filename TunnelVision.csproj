@@ -8,6 +8,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
+    <InformationalVersion>1.1.0</InformationalVersion>
+    <Product>Tunnel Vision</Product>
+    <Company>voidksa</Company>
+    <Copyright>Copyright © voidksa 2026</Copyright>
   </PropertyGroup>
 
   <ItemGroup>

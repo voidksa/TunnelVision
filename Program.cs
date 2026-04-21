@@ -1,4 +1,7 @@
+using System;
+using System.IO;
 using System.Threading;
+using System.Windows.Forms;
 
 namespace TunnelVision
 {
@@ -20,8 +23,31 @@ namespace TunnelVision
                 return;
             }
 
+            // Global exception handlers — log to file + friendly dialog with stack trace
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (s, e) => HandleException(e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (s, e) => HandleException(e.ExceptionObject as Exception);
+
             ApplicationConfiguration.Initialize();
             Application.Run(new OverlayForm());
+        }
+
+        private static void HandleException(Exception? ex)
+        {
+            if (ex == null) return;
+            try
+            {
+                string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log");
+                File.AppendAllText(logPath,
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}\n\n");
+
+                MessageBox.Show(
+                    $"{ex.GetType().Name}: {ex.Message}\n\nDetails saved to crash.log next to the executable.",
+                    "Tunnel Vision — Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+            catch { /* absolutely last-resort: swallow so we don't recurse */ }
         }
     }
 }
