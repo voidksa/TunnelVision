@@ -36,10 +36,10 @@ namespace TunnelVision
         {
             _settings = AppSettings.Load();
 
-            // v1.1.0: blur is force-disabled regardless of saved config.
-            // The acrylic API paints over the region cutout, producing a solid
-            // black screen instead of the blurred-around-focus effect we want.
-            // The setting stays in the schema so upgrade paths keep working.
+            // v1.1.0: blur is force-off. ACCENT_ENABLE_ACRYLICBLURBEHIND paints
+            // over the region cutout no matter how we configure the window, so
+            // the toggle is hidden and the setting is clamped here for any
+            // config files carried over from the old implementation.
             _settings.BlurBackground = false;
 
             // Form configuration
@@ -423,21 +423,9 @@ namespace TunnelVision
 
         private void ApplyBackdropEffect()
         {
+            // Blur is force-off in v1.1.0 (see constructor comment). Always disable.
             if (!this.IsHandleCreated) return;
-            if (_settings.BlurBackground)
-            {
-                var c = Color.FromArgb(_settings.TintColorArgb);
-                // Route the darkness slider into the acrylic tint's alpha channel.
-                // Form.Opacity is held at 1.0 while blur is on so the region cutout
-                // stays crisp — Form.Opacity * acrylic-alpha double-dimming otherwise
-                // washes out the focus window.
-                byte tintAlpha = (byte)Math.Max(0, Math.Min(255, (int)Math.Round(_settings.Opacity * 255)));
-                NativeMethods.ApplyAcrylicBlur(this.Handle, c, tintAlpha);
-            }
-            else
-            {
-                NativeMethods.DisableBlur(this.Handle);
-            }
+            NativeMethods.DisableBlur(this.Handle);
         }
 
         private const int HOTKEY_TOGGLE = 1;
