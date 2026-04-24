@@ -29,9 +29,11 @@
 ## 🎬 See it in action
 
 <p align="center">
-  <video src="media/demo.mp4" controls width="760" muted playsinline>
-    Your browser does not support embedded video. <a href="media/demo.mp4">Download the demo instead.</a>
-  </video>
+  <a href="https://github.com/voidksa/TunnelVision/releases/latest/download/demo.mp4">
+    <img src="media/demo.gif" alt="Tunnel Vision demo" width="760" />
+  </a>
+  <br />
+  <em>Click the preview for the full-quality MP4</em>
 </p>
 
 <table>
