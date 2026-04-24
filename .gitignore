@@ -38,10 +38,11 @@ ReleasePkg/
 config.json
 crash.log
 
-# Demo build tooling — never pushed. Only the final rendered video under
-# media/demo.mp4 is part of the repo. The HyperFrames pipeline lives
-# locally for rebuilds but isn't product source.
+# Local media assets kept out of the repo. The demo video lives on
+# GitHub's user-attachments CDN (linked from README), so media/ is just
+# a working folder for the source files.
 demo/
+media/
 
 # OS
 Thumbs.db

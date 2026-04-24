@@ -28,13 +28,7 @@
 
 ## 🎬 See it in action
 
-<p align="center">
-  <a href="https://youtu.be/TYlYyPzpRug">
-    <img src="https://img.youtube.com/vi/TYlYyPzpRug/maxresdefault.jpg" alt="Tunnel Vision demo video" width="760" />
-  </a>
-  <br />
-  <em>▶ Watch the demo on YouTube</em>
-</p>
+https://github.com/user-attachments/assets/0f11fb8a-22e9-4b44-bc67-d9e65c0bfe26
 
 <table>
   <tr>
