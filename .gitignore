@@ -38,18 +38,10 @@ ReleasePkg/
 config.json
 crash.log
 
-# Demo build artifacts — only the final MP4 under media/ is committed.
-# The full HyperFrames pipeline is preserved in demo/ but its heavy
-# intermediate files are excluded.
-demo/tunnel-vision-demo/node_modules/
-demo/tunnel-vision-demo/music-raw.mp3
-demo/tunnel-vision-demo/*.mp4
-demo/tunnel-vision-demo/.hyperframes-cache/
-demo/tunnel-vision-demo/assets/p0*.mp3
-demo/tunnel-vision-demo/assets/narration-*.mp3
-demo/tunnel-vision-demo/work-*/
-demo/tunnel-vision-demo/AGENTS.md
-demo/tunnel-vision-demo/CLAUDE.md
+# Demo build tooling — never pushed. Only the final rendered video under
+# media/demo.mp4 is part of the repo. The HyperFrames pipeline lives
+# locally for rebuilds but isn't product source.
+demo/
 
 # OS
 Thumbs.db
