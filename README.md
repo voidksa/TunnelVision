@@ -29,11 +29,11 @@
 ## 🎬 See it in action
 
 <p align="center">
-  <a href="https://github.com/voidksa/TunnelVision/releases/latest/download/demo.mp4">
-    <img src="media/demo.gif" alt="Tunnel Vision demo" width="760" />
+  <a href="https://youtu.be/TYlYyPzpRug">
+    <img src="https://img.youtube.com/vi/TYlYyPzpRug/maxresdefault.jpg" alt="Tunnel Vision demo video" width="760" />
   </a>
   <br />
-  <em>Click the preview for the full-quality MP4</em>
+  <em>▶ Watch the demo on YouTube</em>
 </p>
 
 <table>
