@@ -452,24 +452,47 @@ namespace TunnelVision
             });
             page.Controls.Add(_smoothCheckBox);
 
-            // Blur stays hidden for v1.1.0. Tested three distinct implementations
-            // (Form.Opacity + acrylic tint, full-opaque + tint-alpha-driven darkness,
-            // suppressed OnPaintBackground) — all three produce a solid dark/black
-            // overlay because Windows' ACCENT_ENABLE_ACRYLICBLURBEHIND paints the
-            // entire window rect and ignores GDI region cutouts. A proper fix needs
-            // multiple smaller blur windows positioned around the focus rect; that's
-            // scoped for a later release. Placeholder kept so LoadSettingsToUI and
-            // layout math don't fall over.
-            _blurCheckBox = new ToggleSwitch(_isDark) { Visible = false };
+            _blurCheckBox = BuildSwitch("Blur background (experimental)", 156, _settings.BlurBackground, (chk) =>
+            {
+                if (chk)
+                {
+                    // First-time-on: warn that this is experimental and let the user back out.
+                    var result = MessageBox.Show(
+                        this,
+                        "Blur background is an experimental feature.\n\n" +
+                        "It captures your screen every half-second and renders a soft Gaussian-" +
+                        "blurred version behind the dim. You may notice a small performance cost " +
+                        "while dragging windows, or mild \"ghosting\" on fast motion.\n\n" +
+                        "If anything looks wrong, just turn it back off from this same toggle.\n\n" +
+                        "Enable blur background?",
+                        "Tunnel Vision — Experimental Feature",
+                        MessageBoxButtons.OKCancel,
+                        MessageBoxIcon.Information,
+                        MessageBoxDefaultButton.Button2);
 
-            _fullscreenCheckBox = BuildSwitch("Auto-pause in fullscreen (games, videos, presentations)", 156, _settings.PauseInFullscreen, (chk) =>
+                    if (result != DialogResult.OK)
+                    {
+                        // User cancelled: revert the visual toggle state and don't save.
+                        _suppressEvents = true;
+                        try { _blurCheckBox.Checked = false; } finally { _suppressEvents = false; }
+                        return;
+                    }
+                }
+
+                _settings.BlurBackground = chk;
+                _settings.Save();
+                _onSettingsChanged?.Invoke();
+            });
+            page.Controls.Add(_blurCheckBox);
+
+            _fullscreenCheckBox = BuildSwitch("Auto-pause in fullscreen (games, videos, presentations)", 204, _settings.PauseInFullscreen, (chk) =>
             {
                 _settings.PauseInFullscreen = chk;
                 _settings.Save();
             });
             page.Controls.Add(_fullscreenCheckBox);
 
-            _autoUpdateCheckBox = BuildSwitch("Check for updates automatically (every 6 hours)", 204, _settings.AutoCheckUpdates, (chk) =>
+            _autoUpdateCheckBox = BuildSwitch("Check for updates automatically (every 6 hours)", 252, _settings.AutoCheckUpdates, (chk) =>
             {
                 _settings.AutoCheckUpdates = chk;
                 _settings.Save();

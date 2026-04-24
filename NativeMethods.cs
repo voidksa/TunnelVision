@@ -95,6 +95,21 @@ namespace TunnelVision
             try { DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref mica, sizeof(int)); } catch { }
         }
 
+        // Marks a window as invisible to screen-capture APIs (BitBlt, PrintWindow,
+        // Desktop Duplication, Windows.Media.Capture, etc.). We use this on the
+        // blur panels so Graphics.CopyFromScreen doesn't feedback-loop on our
+        // own backdrop while we're trying to render fresh behind it.
+        // Windows 10 2004+.
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetWindowDisplayAffinity(IntPtr hwnd, uint dwAffinity);
+        public const uint WDA_NONE = 0x00000000;
+        public const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
+
+        public static void TryExcludeFromCapture(IntPtr hwnd)
+        {
+            try { SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE); } catch { }
+        }
+
         // ===== Undocumented composition blur (SetWindowCompositionAttribute) =====
         // Works on Windows 10 1803+ and Windows 11. Gives real-time blur of content behind.
         [StructLayout(LayoutKind.Sequential)]

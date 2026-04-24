@@ -18,11 +18,33 @@ namespace TunnelVision
 
         private IntPtr _cachedWindow = IntPtr.Zero;
         private bool _cachedUseDwm = true;
+        // Whether the current foreground window is a transient popup (context
+        // menu, tooltip, flyout). Cached so we can act on it every tick, not
+        // only when the foreground changes.
+        private bool _cachedIsTransientPopup = false;
 
         private AppSettings _settings;
         private SettingsForm? _settingsForm;
         private OsdForm? _osd;
         private bool _isPaused = true;
+
+        // 4 blur strips positioned around the focus window when blur is on.
+        // Each panel renders a captured+blurred slice of the desktop underneath
+        // itself, plus a tint overlay. The capture-and-blur pipeline is driven
+        // from this form (see _blurCaptureTimer and RefreshBlurCapture).
+        private BlurPanelForm? _blurTop, _blurBottom, _blurLeft, _blurRight;
+
+        // Drives periodic desktop capture + blur for the 4 panels.
+        private Timer? _blurCaptureTimer;
+        private const int BlurCaptureIntervalMs = 500;
+
+        // Cached most-recent blurred snapshot of the virtual desktop. The blur
+        // pass runs on a background thread and writes the result here; the UI
+        // thread re-slices it whenever the panels move so the visual stays in
+        // lock-step with window dragging, not with the 500 ms capture cadence.
+        private Bitmap? _cachedBlurredFull;
+        private readonly object _cachedBlurLock = new();
+        private volatile bool _blurCaptureInFlight;
 
         // Latest known release info (for manual checks / tray pulse)
         private string _latestVersion = "";
@@ -35,12 +57,6 @@ namespace TunnelVision
         public OverlayForm()
         {
             _settings = AppSettings.Load();
-
-            // v1.1.0: blur is force-off. ACCENT_ENABLE_ACRYLICBLURBEHIND paints
-            // over the region cutout no matter how we configure the window, so
-            // the toggle is hidden and the setting is clamped here for any
-            // config files carried over from the old implementation.
-            _settings.BlurBackground = false;
 
             // Form configuration
             this.FormBorderStyle = FormBorderStyle.None;
@@ -176,10 +192,13 @@ namespace TunnelVision
 
             menu.Items.Add(new ToolStripSeparator());
             AddItem("GitHub", (s, e) => OpenUrl(GetRepoUrl()));
-            // Defer exit so we return from the click handler before the menu is disposed,
-            // otherwise WinForms raises "Collection was modified" as it iterates menu items
-            // mid-click.
-            AddItem("Exit", (s, e) => this.BeginInvoke(new Action(() => Application.Exit())));
+            // Defer + close the main form (instead of Application.Exit()).
+            // Application.Exit iterates Application.OpenForms and calls Close on
+            // each — but with our four blur panels + OSD + Settings all registered,
+            // that iteration can race with form disposal and throw
+            // "Collection was modified". Closing the root form lets Application.Run
+            // unwind naturally and the runtime cleans up the rest.
+            AddItem("Exit", (s, e) => this.BeginInvoke(new Action(() => this.Close())));
 
             _trayIcon.ContextMenuStrip?.Dispose();
             _trayIcon.ContextMenuStrip = menu;
@@ -423,9 +442,214 @@ namespace TunnelVision
 
         private void ApplyBackdropEffect()
         {
-            // Blur is force-off in v1.1.0 (see constructor comment). Always disable.
             if (!this.IsHandleCreated) return;
-            NativeMethods.DisableBlur(this.Handle);
+
+            if (_settings.BlurBackground)
+            {
+                // Switch to the 4-panel manual-blur model.
+                // Hide the single-window dim (it would double up with the panels).
+                this.Opacity = 0;
+                EnsureBlurPanels();
+                UpdateBlurPanelTints();
+                UpdateBlurPanels(_lastRect);
+                StartBlurCaptureLoop();
+            }
+            else
+            {
+                // Tear down panels if they were up, and restore classic dim.
+                StopBlurCaptureLoop();
+                HideBlurPanels();
+                this.Opacity = _settings.Opacity;
+            }
+        }
+
+        // Periodic capture + Gaussian-ish blur of the virtual desktop. Runs at
+        // ~2 fps by default which is enough for an "ambient" aesthetic without
+        // burning CPU. We capture the whole virtual screen once per tick, blur
+        // it, then slice the result into each visible panel's rect.
+        private void StartBlurCaptureLoop()
+        {
+            if (_blurCaptureTimer != null) return;
+            _blurCaptureTimer = new Timer { Interval = BlurCaptureIntervalMs };
+            _blurCaptureTimer.Tick += (s, e) => RefreshBlurCapture();
+            _blurCaptureTimer.Start();
+            // Prime the first frame immediately so the user doesn't see solid
+            // tint for half a second when they toggle blur on.
+            RefreshBlurCapture();
+        }
+
+        private void StopBlurCaptureLoop()
+        {
+            _blurCaptureTimer?.Stop();
+            _blurCaptureTimer?.Dispose();
+            _blurCaptureTimer = null;
+        }
+
+        private void RefreshBlurCapture()
+        {
+            if (!_settings.BlurBackground || _isPaused || _shuttingDown) return;
+            if (_blurCaptureInFlight) return;
+
+            Rectangle vs = SystemInformation.VirtualScreen;
+
+            // Capture on UI thread (CopyFromScreen requires it for DPI handling),
+            // blur on a background Task.
+            Bitmap full;
+            try
+            {
+                full = new Bitmap(vs.Width, vs.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                using var g = Graphics.FromImage(full);
+                g.CopyFromScreen(vs.Location, Point.Empty, vs.Size);
+            }
+            catch
+            {
+                return;
+            }
+
+            _blurCaptureInFlight = true;
+            Task.Run(() =>
+            {
+                Bitmap? blurred = null;
+                try
+                {
+                    blurred = ImageBlur.FastBlur(full);
+                }
+                catch { }
+                finally
+                {
+                    full.Dispose();
+                }
+
+                if (blurred == null) { _blurCaptureInFlight = false; return; }
+
+                if (this.IsHandleCreated && !this.IsDisposed && !_shuttingDown)
+                {
+                    try
+                    {
+                        this.BeginInvoke(new Action(() =>
+                        {
+                            // Swap the shared reference under UI-thread serialization.
+                            Bitmap? old;
+                            lock (_cachedBlurLock)
+                            {
+                                old = _cachedBlurredFull;
+                                _cachedBlurredFull = blurred;
+                            }
+                            // All four panels now point to the new bitmap, then we
+                            // dispose the old one. Because panels never touch the
+                            // bitmap off the UI thread, this swap-then-dispose is safe.
+                            _blurTop?.SetSharedBitmap(blurred);
+                            _blurBottom?.SetSharedBitmap(blurred);
+                            _blurLeft?.SetSharedBitmap(blurred);
+                            _blurRight?.SetSharedBitmap(blurred);
+                            old?.Dispose();
+                            _blurCaptureInFlight = false;
+                        }));
+                    }
+                    catch
+                    {
+                        blurred.Dispose();
+                        _blurCaptureInFlight = false;
+                    }
+                }
+                else
+                {
+                    blurred.Dispose();
+                    _blurCaptureInFlight = false;
+                }
+            });
+        }
+
+        // Updates just the source-rect for each panel (cheap: no bitmap copy).
+        // Called every time panels are repositioned so the content they show
+        // matches the new position at 60 fps, without waiting for the next
+        // capture cycle.
+        private void ReslicePanelBitmapsFromCache()
+        {
+            var vs = SystemInformation.VirtualScreen;
+            SetPanelSourceRect(_blurTop, vs);
+            SetPanelSourceRect(_blurBottom, vs);
+            SetPanelSourceRect(_blurLeft, vs);
+            SetPanelSourceRect(_blurRight, vs);
+        }
+
+        private static void SetPanelSourceRect(BlurPanelForm? panel, Rectangle vs)
+        {
+            if (panel == null || !panel.Visible || panel.IsDisposed) return;
+            if (panel.Width <= 0 || panel.Height <= 0) return;
+
+            int x = panel.Left - vs.Left;
+            int y = panel.Top - vs.Top;
+            panel.SetSourceRect(new Rectangle(x, y, panel.Width, panel.Height));
+        }
+
+        private void EnsureBlurPanels()
+        {
+            _blurTop    ??= new BlurPanelForm();
+            _blurBottom ??= new BlurPanelForm();
+            _blurLeft   ??= new BlurPanelForm();
+            _blurRight  ??= new BlurPanelForm();
+        }
+
+        private void UpdateBlurPanelTints()
+        {
+            var tint = Color.FromArgb(_settings.TintColorArgb);
+            double pct = _settings.Opacity;
+            _blurTop?.UpdateTint(tint, pct);
+            _blurBottom?.UpdateTint(tint, pct);
+            _blurLeft?.UpdateTint(tint, pct);
+            _blurRight?.UpdateTint(tint, pct);
+        }
+
+        private void HideBlurPanels()
+        {
+            if (_blurTop != null) _blurTop.Visible = false;
+            if (_blurBottom != null) _blurBottom.Visible = false;
+            if (_blurLeft != null) _blurLeft.Visible = false;
+            if (_blurRight != null) _blurRight.Visible = false;
+        }
+
+        // Position the 4 acrylic strips around the focus rect. Called every
+        // frame that the focus window moves. Skipped entirely when blur is off.
+        private void UpdateBlurPanels(Rectangle focus)
+        {
+            if (!_settings.BlurBackground || _isPaused) return;
+            EnsureBlurPanels();
+
+            var vs = SystemInformation.VirtualScreen;
+
+            // If no focus rect, fill everything with one blur panel (top strip
+            // takes the whole screen, others hidden).
+            if (focus.IsEmpty || focus.Width <= 0 || focus.Height <= 0)
+            {
+                _blurTop!.SetRect(vs);
+                _blurBottom!.SetRect(Rectangle.Empty);
+                _blurLeft!.SetRect(Rectangle.Empty);
+                _blurRight!.SetRect(Rectangle.Empty);
+                return;
+            }
+
+            // Clamp focus to virtual screen
+            int fx = Math.Max(vs.Left, focus.Left);
+            int fy = Math.Max(vs.Top, focus.Top);
+            int fr = Math.Min(vs.Right, focus.Right);
+            int fb = Math.Min(vs.Bottom, focus.Bottom);
+
+            var topStrip    = Rectangle.FromLTRB(vs.Left, vs.Top, vs.Right, fy);
+            var bottomStrip = Rectangle.FromLTRB(vs.Left, fb,      vs.Right, vs.Bottom);
+            var leftStrip   = Rectangle.FromLTRB(vs.Left, fy,      fx,        fb);
+            var rightStrip  = Rectangle.FromLTRB(fr,      fy,      vs.Right,  fb);
+
+            _blurTop!.SetRect(topStrip);
+            _blurBottom!.SetRect(bottomStrip);
+            _blurLeft!.SetRect(leftStrip);
+            _blurRight!.SetRect(rightStrip);
+
+            // Panels just moved — re-slice from the cached blurred bitmap so
+            // each panel shows the content that's CURRENTLY behind it, not
+            // what was behind it at the last capture (500 ms ago). Without
+            // this, dragging a window drags ghost content with it.
+            ReslicePanelBitmapsFromCache();
         }
 
         private const int HOTKEY_TOGGLE = 1;
@@ -600,7 +824,14 @@ namespace TunnelVision
             int next = Math.Max(10, Math.Min(95, current + deltaPercent));
 
             _settings.Opacity = next / 100.0;
-            this.Opacity = _settings.Opacity;
+            if (_settings.BlurBackground)
+            {
+                UpdateBlurPanelTints();
+            }
+            else
+            {
+                this.Opacity = _settings.Opacity;
+            }
             _settings.Save();
 
             // Reflect change in open settings window
@@ -633,12 +864,23 @@ namespace TunnelVision
             if (_isPaused)
             {
                 this.Visible = false;
+                HideBlurPanels();
             }
             else
             {
-                this.Visible = true;
                 _lastForegroundWindow = IntPtr.Zero;
                 _cachedWindow = IntPtr.Zero;
+
+                if (_settings.BlurBackground)
+                {
+                    // Keep main overlay hidden in blur mode; panels are the visual.
+                    this.Visible = false;
+                    ApplyBackdropEffect();
+                }
+                else
+                {
+                    this.Visible = true;
+                }
             }
         }
 
@@ -670,9 +912,24 @@ namespace TunnelVision
 
                         _cachedUseDwm = true;
 
-                        if (className == "Shell_TrayWnd" ||
+                        // Transient popups (right-click menus, tooltips, flyouts...)
+                        // must not become the tracked focus — otherwise the cutout
+                        // retargets them and the user can't see the underlying
+                        // context they clicked on. We also stop covering them.
+                        _cachedIsTransientPopup = false;
+                        if (className == "#32768" ||                // classic context menu
+                            className == "tooltips_class32" ||       // classic tooltip
+                            className == "DropDown" ||               // WPF
+                            className == "Xaml_WindowedPopupClass" ||// WinUI 3
+                            className == "Popup" ||
+                            className.StartsWith("Popup") ||
+                            className.StartsWith("Windows.UI.Popups"))
+                        {
+                            _cachedIsTransientPopup = true;
+                            _cachedUseDwm = false;
+                        }
+                        else if (className == "Shell_TrayWnd" ||
                             className == "Shell_SecondaryTrayWnd" ||
-                            className == "#32768" ||
                             className == "NotifyIconOverflowWindow")
                         {
                             _cachedUseDwm = false;
@@ -729,13 +986,37 @@ namespace TunnelVision
                 if (_settings.PauseInFullscreen && isValidWindow && IsFullscreenOnAnyScreen(currentRect))
                 {
                     if (this.Visible) this.Visible = false;
+                    HideBlurPanels();
                     _lastForegroundWindow = foregroundWindow;
                     _lastRect = currentRect;
                     return;
                 }
-                else if (!this.Visible && !_isPaused)
+
+                // Transient popup (context menu, tooltip, flyout, combobox dropdown):
+                // get out of the way entirely so the popup renders unobstructed.
+                // We're TopMost, and popups aren't always TopMost themselves, so
+                // covering them with any paint makes them invisible. Hide now; we'll
+                // come back when the popup closes and the foreground reverts to a
+                // normal window.
+                if (_cachedIsTransientPopup)
                 {
-                    this.Visible = true;
+                    if (this.Visible) this.Visible = false;
+                    HideBlurPanels();
+                    return;
+                }
+
+                // Normal foreground — restore whichever visual mode is active.
+                if (!_isPaused)
+                {
+                    if (_settings.BlurBackground)
+                    {
+                        // Blur mode: main form stays hidden, panels come back.
+                        if (this.Visible) this.Visible = false;
+                    }
+                    else if (!this.Visible)
+                    {
+                        this.Visible = true;
+                    }
                 }
 
                 if (foregroundWindow == _lastForegroundWindow && currentRect == _lastRect)
@@ -756,6 +1037,15 @@ namespace TunnelVision
 
         private void UpdateHole(Rectangle targetRect, IntPtr hWnd)
         {
+            // Blur mode uses 4 separate acrylic panels around the focus rect —
+            // no Region on the main form is needed (we hid it). Keep the blur
+            // panels in sync with the focus rect here.
+            if (_settings.BlurBackground)
+            {
+                UpdateBlurPanels(targetRect);
+                return;
+            }
+
             if (targetRect.IsEmpty || hWnd == IntPtr.Zero)
             {
                 this.Region = new Region(new Rectangle(0, 0, this.Width, this.Height));
@@ -856,7 +1146,12 @@ namespace TunnelVision
             }
             catch { }
 
+            try { _blurCaptureTimer?.Stop(); _blurCaptureTimer?.Dispose(); } catch { }
             try { _osd?.Dispose(); } catch { }
+            try { _blurTop?.Dispose(); } catch { }
+            try { _blurBottom?.Dispose(); } catch { }
+            try { _blurLeft?.Dispose(); } catch { }
+            try { _blurRight?.Dispose(); } catch { }
             try { _trayIcon?.Dispose(); } catch { }
             try { _refreshTimer?.Stop(); _refreshTimer?.Dispose(); } catch { }
 

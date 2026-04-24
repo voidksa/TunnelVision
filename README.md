@@ -87,13 +87,26 @@ Games, videos, and presentations now get a pass — the overlay detects when a w
 ### Fluent tray menu
 Right-click the tray icon and you get a proper Windows 11 context menu — native rounded corners (DWM), dark/light theme aware, proper padding, subtle hover states. No more system-gray square menu.
 
+### Blurred background (experimental)
+Optional frosted-glass backdrop behind the dim. Instead of relying on Windows' acrylic API (which paints over the focus cutout), Tunnel Vision captures the desktop behind the focus window every half-second, runs a fast Gaussian-style blur on a background thread, and paints the result through four slim panels positioned around the active window. Four separate panels, one shared bitmap, re-sliced per frame — so dragging a window stays at ~60 fps.
+
+Toggle it under **Settings → Behavior → Blur background**. A one-time confirmation dialog explains it's an experimental feature before it turns on.
+
+### Guided installer
+Running `TunnelVision.exe` straight out of the ZIP now opens a Fluent-themed installer:
+- 📁 Custom install location (defaults to `%LocalAppData%\TunnelVision`)
+- 🖥️ Create desktop shortcut, add to Start menu
+- ⚡ Optional "Run at Windows startup"
+- 🗑️ Proper uninstall via Windows Settings → Apps & features (or `--uninstall` flag)
+
+The installer writes a `.installed` marker so subsequent launches skip the UI and go straight to the overlay.
+
 ### Stability & polish
 - 🛡️ **Global exception handler** catches crashes and writes them to `crash.log` next to the executable, so bugs are easy to report.
 - 🧹 Fixed a rare "Collection was modified" crash when clicking Exit while the tray menu was open.
 - 🧹 Fixed a NullReference crash when opening Settings on first launch.
 - ⚡ Settings window now opens and resizes instantly — all controls use proper transparency.
-
-> 🔮 **Coming later:** acrylic blur backdrop. The Win32 acrylic API paints over our region-based focus cutout, so the toggle is held back until a proper implementation (using a separate masked blur window around the focus rect) lands.
+- 🖱️ Right-click context menus, tooltips and flyouts now show unobstructed — the overlay steps out of the way automatically when a popup appears.
 
 ---
 
@@ -103,7 +116,7 @@ Right-click the tray icon and you get a proper Windows 11 context menu — nativ
 |---|---|
 | 🎯 | **Smart Focus** — automatically highlights the active window and dims the background. |
 | 🌓 | **Theme Aware** — adapts to Windows Light / Dark mode in real time. |
-| 📦 | **Portable** — single `.exe`, no installer, no admin rights. |
+| 📦 | **Portable** — single `.exe` with guided Fluent installer (no admin rights required). |
 | ⚡ | **Lightweight** — optimized region updates keep CPU use near zero when idle. |
 | 🔄 | **Auto-Updates** — background check every 6 hours, with opt-out. |
 | ⌨️ | **Global Hotkeys** — control everything without touching the mouse. |
@@ -116,8 +129,11 @@ Right-click the tray icon and you get a proper Windows 11 context menu — nativ
 
 1. Go to the [Releases Page](https://github.com/voidksa/TunnelVision/releases/latest).
 2. Download **`TunnelVision-v1.1.0.zip`**.
-3. Extract anywhere (Documents, Desktop, USB drive...).
-4. Run `TunnelVision.exe`.
+3. Extract anywhere.
+4. Run `TunnelVision.exe` — the guided installer opens automatically the first time.
+5. Pick where to install, optionally add shortcuts, click **Install**.
+
+To remove Tunnel Vision later, use **Windows Settings → Apps & features → Tunnel Vision → Uninstall**.
 
 > Requires [.NET Desktop Runtime 8.0](https://dotnet.microsoft.com/en-us/download/dotnet/8.0). Windows will prompt you if it's missing.
 
@@ -146,7 +162,7 @@ The app shows a tray notification with the default shortcuts the first time you 
 | :--- | :--- |
 | **General** | Darkness level (10–95%), step size (1–25%), on-screen indicator toggle, dim color picker. |
 | **Hotkeys** | Rebind any of the four shortcuts; press the combo in the field. Built-in conflict detection. |
-| **Behavior** | Run on Windows startup, smooth tracking (~60 FPS), auto-pause in fullscreen, auto-update toggle. |
+| **Behavior** | Run on Windows startup, smooth tracking (~60 FPS), blur background (experimental), auto-pause in fullscreen, auto-update toggle. |
 | **About** | Version, manual update check, GitHub link, report-an-issue link. |
 
 ---
@@ -174,15 +190,18 @@ The built executable will be at `bin/Release/net8.0-windows/win-x64/publish/Tunn
 ## 📋 Changelog
 
 ### v1.1.0 — April 2026
-- Intensity hotkeys + step size + OSD indicator
+- Intensity hotkeys (`Ctrl+Alt+↑/↓`) + customizable step size + green OSD indicator
 - Settings hotkey (`Ctrl+Alt+S`)
 - Dim color picker with tint preview
 - Auto-pause in fullscreen
+- **Experimental blur background** — manual capture + Gaussian blur pipeline (no Windows acrylic API dependency)
+- **Guided installer** with custom path, shortcuts, and Start-menu entry
 - Redesigned Settings (sidebar, Mica, Fluent controls, green accent)
 - Fluent tray menu with Win11 rounded corners
 - Smarter update system (changelog, skip version, manual check, balloon tips)
+- Right-click menus / tooltips / flyouts auto-unhide the overlay
 - Global exception handler → `crash.log`
-- Bug fixes: Settings crash on first open, menu-item exit crash
+- Bug fixes: Settings crash on first open, menu-item exit crash, OSD jagged corners
 
 ### v1.0.0 — March 2026
 - Initial release: dim-everything-except-active-window overlay
